@@ -1,2 +1,8 @@
 # ignore vscode configuration files
 *.vscode
+
+# ignore data files
+*.t7
+
+# ignore compressed files
+*.zip
