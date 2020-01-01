@@ -19,28 +19,30 @@ net:add(nn.ReLU())
  -- 10 is the number of outputs of the network (in this case, 10 digits)
 net:add(nn.Linear(84,10))
 -- converts the output to a log-probability. Useful for classification problems
+-- softmax后，所有输出都在0与1之间，所有输出的和为1
+-- log_softmax是在softmax之后再进行log操作
 net:add(nn.LogSoftMax())
 
--- print('Lenet5\n' .. net:__tostring());
+print('Lenet5\n' .. net:__tostring());
 
 input = torch.rand(1,32,32)
 output = net:forward(input)
--- print(output)
+print(output)
 
 -- zero the internal gradient buffers of the network 
 net:zeroGradParameters()
 gradInput = net:backward(input, torch.rand(10))
--- print(#gradInput)
+print(#gradInput)
 
--- loss function --
--- a negative log-likelihood criterion for multi-class classification 
-criterion = nn.ClassNLLCriterion()
-criterion:forward(output, 3)
+-- loss function --  the function that computes an objective measure of the model's performance
+criterion = nn.ClassNLLCriterion()   -- a negative log-likelihood criterion for multi-class classification
+criterion:forward(output, 3)    -- the groundtruth was class number: 3
 gradients = criterion:backward(output, 3)
+print("gradients:\n")
+print(gradients)
 gradInput = net:backward(input, gradients)
 
 -- weights
 m = nn.SpatialConvolution(1,3,2,2) -- learn 3 2x2 kernels
--- print(m.weight) -- initially, the weights are randomly initialized
--- print(m.bias) -- The operation in a convolution layer is: output = convolution(input,weight) + bias
-
+print(m.weight) -- initially, the weights are randomly initialized
+print(m.bias) -- The operation in a convolution layer is: output = convolution(input,weight) + bias

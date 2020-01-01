@@ -12,7 +12,7 @@ classes = {'airplane', 'automobile', 'bird', 'cat',
 
 -- print(trainset)
 -- print(#trainset.data)
--- require 'image'
+require 'image'
 -- image.display(trainset.data[100]) -- BUG:display the 100-th image in dataset
 -- print(classes[trainset.label[100]])
 
@@ -28,12 +28,7 @@ function trainset:size()
     return self.data:size(1) 
 end
 
--- print(trainset:size()) -- just to test
--- print(trainset[33]) -- load sample number 33.
-
-redChannel = trainset.data[{ {}, {1}, {}, {}  }] -- this picks {all images, 1st channel, all vertical pixels, all horizontal pixels}
--- print(#redChannel)
-
+-- normalize train data
 mean = {} -- store the mean, to normalize the test set in the future
 stdv  = {} -- store the standard-deviation for the future
 for i=1,3 do -- over each image channel
@@ -44,6 +39,13 @@ for i=1,3 do -- over each image channel
     stdv[i] = trainset.data[{ {}, {i}, {}, {}  }]:std() -- std estimation
     print('Channel ' .. i .. ', Standard Deviation: ' .. stdv[i])
     trainset.data[{ {}, {i}, {}, {}  }]:div(stdv[i]) -- std scaling
+end
+
+-- normalize the test data
+testset.data = testset.data:double()   -- convert from Byte tensor to Double tensor
+for i=1,3 do -- over each image channel
+    testset.data[{ {}, {i}, {}, {}  }]:add(-mean[i]) -- mean subtraction    
+    testset.data[{ {}, {i}, {}, {}  }]:div(stdv[i]) -- std scaling
 end
 
 --------- 2. define the neural network
@@ -71,22 +73,30 @@ net:add(nn.LogSoftMax())
 
 
 --------- 3. define the loss function
-criterion = nn.ClassNLLCriterion()
+criterion = nn.ClassNLLCriterion()  -- negative log-likelihood criterion
+
 
 --------- 4. train the neural network
+-- train on GPU
+require 'cunn'
+net = net:cuda()
+criterion = criterion:cuda()
+trainset.data = trainset.data:cuda()
+trainset.label = trainset.label:cuda()
+testset.data = testset.data:cuda()
+testset.label = testset.label:cuda()
+
 trainer = nn.StochasticGradient(net, criterion)
 trainer.learningRate = 0.001
-trainer.maxIteration = 5 -- just do 5 epochs of training.
+trainer.maxIteration = 2 -- just do 5 epochs of training
+
 trainer:train(trainset)
 
---------- 5. test the network and print the accuracy
-testset.data = testset.data:double()   -- convert from Byte tensor to Double tensor
-for i=1,3 do -- over each image channel
-    testset.data[{ {}, {i}, {}, {}  }]:add(-mean[i]) -- mean subtraction    
-    testset.data[{ {}, {i}, {}, {}  }]:div(stdv[i]) -- std scaling
-end
+-- save weights
+local weights, gradParams = net:getParameters()
+torch.save('./weights_test.dat', weights:type('torch.FloatTensor'))
 
-predicted = net:forward(testset.data[100])
+--------- 5. test the network and print the accuracy
 
 correct = 0
 for i=1,10000 do
@@ -97,8 +107,7 @@ for i=1,10000 do
         correct = correct + 1
     end
 end
-
-print(correct, 100*correct/10000 .. ' % ')
+print('\ncorrect:', 100*correct/10000 .. '%')
 
 class_performance = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 for i=1,10000 do
@@ -109,7 +118,7 @@ for i=1,10000 do
         class_performance[groundtruth] = class_performance[groundtruth] + 1
     end
 end
-
+print("\nclasses performance");
 for i=1,#classes do
     print(classes[i], 100*class_performance[i]/1000 .. ' %')
 end
