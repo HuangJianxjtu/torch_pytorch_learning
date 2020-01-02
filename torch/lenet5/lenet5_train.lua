@@ -122,3 +122,5 @@ print("\nclasses performance");
 for i=1,#classes do
     print(classes[i], 100*class_performance[i]/1000 .. ' %')
 end
+
+-- How to save and load network weights???

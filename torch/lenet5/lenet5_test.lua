@@ -5,41 +5,11 @@ if (not paths.filep("cifar10torchsmall.zip")) then
     os.execute('wget -c https://s3.amazonaws.com/torch7/data/cifar10torchsmall.zip')
     os.execute('unzip cifar10torchsmall.zip')
 end
-trainset = torch.load('cifar10-train.t7')
 testset = torch.load('cifar10-test.t7')
 classes = {'airplane', 'automobile', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck'}
 
--- print(trainset)
--- print(#trainset.data)
 require 'image'
--- image.display(trainset.data[100]) -- BUG:display the 100-th image in dataset
--- print(classes[trainset.label[100]])
-
--- ignore setmetatable for now, it is a feature beyond the scope of this tutorial. It sets the index operator.
-setmetatable(trainset, 
-    {__index = function(t, i) 
-                    return {t.data[i], t.label[i]} 
-                end}
-);
-trainset.data = trainset.data:double() -- convert the data from a ByteTensor to a DoubleTensor.
-
-function trainset:size() 
-    return self.data:size(1) 
-end
-
--- normalize train data
-mean = {} -- store the mean, to normalize the test set in the future
-stdv  = {} -- store the standard-deviation for the future
-for i=1,3 do -- over each image channel
-    mean[i] = trainset.data[{ {}, {i}, {}, {}  }]:mean() -- mean estimation
-    print('Channel ' .. i .. ', Mean: ' .. mean[i])
-    trainset.data[{ {}, {i}, {}, {}  }]:add(-mean[i]) -- mean subtraction
-    
-    stdv[i] = trainset.data[{ {}, {i}, {}, {}  }]:std() -- std estimation
-    print('Channel ' .. i .. ', Standard Deviation: ' .. stdv[i])
-    trainset.data[{ {}, {i}, {}, {}  }]:div(stdv[i]) -- std scaling
-end
 
 -- normalize the test data
 testset.data = testset.data:double()   -- convert from Byte tensor to Double tensor
@@ -76,28 +46,19 @@ net:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()  -- negative log-likelihood criterion
 
 
---------- 4. train the neural network
--- train on GPU
+--------- 4. test the network and print the accuracy
+-- use GPU
 require 'cunn'
 net = net:cuda()
 criterion = criterion:cuda()
-trainset.data = trainset.data:cuda()
-trainset.label = trainset.label:cuda()
 testset.data = testset.data:cuda()
 testset.label = testset.label:cuda()
 
-trainer = nn.StochasticGradient(net, criterion)
-trainer.learningRate = 0.001
-trainer.maxIteration = 2 -- just do 5 epochs of training
-
-trainer:train(trainset)
-
--- save weights
-local weights, gradParams = net:getParameters()
-torch.save('./weights_test.dat', weights:type('torch.FloatTensor'))
-
---------- 5. test the network and print the accuracy
-
+-- load weights
+print("loading weights")
+weights = torch.load('weights_test.dat')
+net
+-- test
 correct = 0
 for i=1,10000 do
     local groundtruth = testset.label[i]
